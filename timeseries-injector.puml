@@ -1,0 +1,80 @@
+@startuml
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Dynamic.puml
+
+!include <awslib/AWSCommon>
+
+!include <awslib/General/Users>
+!include <awslib/Mobile/APIGateway>
+!include <awslib/Compute/Lambda>
+!include <awslib/Database/DynamoDB>
+!include <awslib/Database/Timestream>
+!include <awslib/Compute/Lambda>
+!include <awslib/ApplicationIntegration/SimpleQueueServiceQueue>
+!include <awslib/Storage/SimpleStorageServiceBucket>
+!include <awslib/ApplicationIntegration/APIGateway>
+!include <awslib/ApplicationIntegration/APIGatewayEndpoint>
+!include <awslib/ApplicationIntegration/StepFunctions>
+!include <awslib/ApplicationIntegration/EventBridgeEvent>
+!include <awslib/General/TraditionalServer>
+
+title "Serverless Timeseries injector and reader"
+
+cloud "Timeseries Database" {
+  Timestream(TS_DB, "Timeseries DB", "")
+}
+
+cloud "Tenant Data" {
+  DynamoDB(TENANTS_TABLE, "Tenants table", "")
+}
+
+cloud "Raw data" {
+  SimpleStorageServiceBucket(RAW_DATA_BUCKET, "Raw data Bucket", "Structure: sensor_id/file_checksum", "")
+  note right of RAW_DATA_BUCKET: checksum to ensure ignoring already existing data
+  SimpleQueueServiceQueue(RAW_DATA_QUEUE, "Raw Data SQS Queue", "")
+  Rel(RAW_DATA_BUCKET, RAW_DATA_QUEUE, "emits event on new object",   "")
+
+}
+
+cloud "Parser" {
+  Lambda(PARSER_FUNCTION, "Parser Function", "")
+  Rel(RAW_DATA_QUEUE, PARSER_FUNCTION, "reads message from queue",   "")
+  Rel(RAW_DATA_BUCKET, PARSER_FUNCTION, "reads raw data", "")
+  Rel(PARSER_FUNCTION, TS_DB, "insert timeseries data", "")
+}
+
+cloud "Injectors" {
+  cloud "Periodic (pull) Injector" #lightblue {
+    UpdateRelStyle($lineColor="blue", $textColor="blue")
+    StepFunctions(PULL_COORDINATOR, "Coordination State Machine", "")
+    EventBridgeEvent(PERIODIC_SCHEDULER, "Scheduler", "")
+    Traditionalserver(PULL_SOURCE, "External source", "")
+    RelIndex(1, PERIODIC_SCHEDULER, PULL_COORDINATOR, "triggers every X minutes")
+    RelIndex(2, PULL_COORDINATOR, TENANTS_TABLE, "reads injector_type=periodic")
+    RelIndex(3, PULL_COORDINATOR, PULL_SOURCE, "pulls data")
+    RelIndex(4, PULL_COORDINATOR, RAW_DATA_BUCKET, "puts data")
+  }
+
+  cloud "HTTP Upload Injector" #lightpink {
+    actor User as UPLOADER
+    UpdateContainerBoundaryStyle("red")
+    APIGatewayEndpoint(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "/gen-upload-url", "returns presigned URL for upload")
+    Lambda(UPLOAD_AUTHORIZER, "Upload Authorizer", "")
+    RelIndex(3, UPLOAD_AUTHORIZER, TENANTS_TABLE, "authorizes", "")
+    RelIndex(4, UPLOAD_AUTHORIZER, RAW_DATA_BUCKET, "generates presigned URL", "")
+    RelIndex(2, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, UPLOAD_AUTHORIZER, "calls", "")
+
+    RelIndex(1, UPLOADER, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "gets presigned upload URL")
+    RelIndex(5, UPLOADER, RAW_DATA_BUCKET, "uploads data")
+  }
+
+    cloud "HTTP Upload Injector 2" #green {
+      actor User as UPLOADER_
+      APIGatewayParticipant(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT_, "as", "as")
+      UPLOADER_ -> HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT_
+
+    }
+
+}
+@enduml
