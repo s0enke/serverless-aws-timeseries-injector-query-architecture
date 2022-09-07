@@ -3,21 +3,14 @@
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Dynamic.puml
 
-!include <awslib/AWSCommon>
-
-!include <awslib/General/Users>
-!include <awslib/Mobile/APIGateway>
-!include <awslib/Compute/Lambda>
-!include <awslib/Database/DynamoDB>
-!include <awslib/Database/Timestream>
-!include <awslib/Compute/Lambda>
-!include <awslib/ApplicationIntegration/SimpleQueueServiceQueue>
-!include <awslib/Storage/SimpleStorageServiceBucket>
-!include <awslib/ApplicationIntegration/APIGateway>
-!include <awslib/ApplicationIntegration/APIGatewayEndpoint>
-!include <awslib/ApplicationIntegration/StepFunctions>
-!include <awslib/ApplicationIntegration/EventBridgeEvent>
-!include <awslib/General/TraditionalServer>
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v13.1/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/General/all.puml
+!include AWSPuml/Compute/all.puml
+!include AWSPuml/Database/all.puml
+!include AWSPuml/Storage/all.puml
+!include AWSPuml/ApplicationIntegration/all.puml
+!include AWSPuml/General/all.puml
 
 title "Serverless Timeseries injector and reader"
 
@@ -58,7 +51,7 @@ cloud "Injectors" {
 
   cloud "HTTP Upload Injector" #lightpink {
     actor User as UPLOADER
-    UpdateContainerBoundaryStyle("red")
+    UpdateRelStyle($lineColor="red", $textColor="red")
     APIGatewayEndpoint(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "/gen-upload-url", "returns presigned URL for upload")
     Lambda(UPLOAD_AUTHORIZER, "Upload Authorizer", "")
     RelIndex(3, UPLOAD_AUTHORIZER, TENANTS_TABLE, "authorizes", "")
@@ -69,12 +62,7 @@ cloud "Injectors" {
     RelIndex(5, UPLOADER, RAW_DATA_BUCKET, "uploads data")
   }
 
-    cloud "HTTP Upload Injector 2" #green {
-      actor User as UPLOADER_
-      APIGatewayParticipant(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT_, "as", "as")
-      UPLOADER_ -> HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT_
 
-    }
 
 }
 @enduml
