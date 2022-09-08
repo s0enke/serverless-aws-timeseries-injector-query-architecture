@@ -10,7 +10,7 @@
 !include AWSPuml/Database/all.puml
 !include AWSPuml/Storage/all.puml
 !include AWSPuml/ApplicationIntegration/all.puml
-!include AWSPuml/General/all.puml
+!include AWSPuml/BusinessApplications/all.puml
 
 title "Serverless Timeseries injector and reader"
 
@@ -62,7 +62,17 @@ cloud "Injectors" {
     RelIndex(5, UPLOADER, RAW_DATA_BUCKET, "uploads data")
   }
 
-
+  cloud "Email Injector" #lightgreen {
+    UpdateRelStyle($lineColor="green", $textColor="green")
+    SimpleEmailServiceEmail(INCOMING_EMAILS, "Incoming emails", "")
+    SimpleEmailService(SES_INCOMING, "Incoming email gateway", "")
+    note right of SES_INCOMING: Format: incoming+secret_value\n@sensor-injector.\nprod.example.com
+    RelIndex(1, INCOMING_EMAILS, SES_INCOMING, "arrive at")
+    Lambda(INCOMING_EMAILS_LAMBDA, "Incoming Mail handler", "")
+    RelIndex(2, SES_INCOMING, INCOMING_EMAILS_LAMBDA, "calls", "")
+    RelIndex(3, INCOMING_EMAILS_LAMBDA, TENANTS_TABLE, "authorizes", "")
+    RelIndex(4, INCOMING_EMAILS_LAMBDA, RAW_DATA_BUCKET, "parses mail and puts into", "")
+  }
 
 }
 @enduml
