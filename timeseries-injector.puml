@@ -11,6 +11,7 @@
 !include AWSPuml/Storage/all.puml
 !include AWSPuml/ApplicationIntegration/all.puml
 !include AWSPuml/BusinessApplications/all.puml
+!include AWSPuml/SecurityIdentityCompliance/all.puml
 
 title "Serverless Timeseries injector and reader"
 
@@ -18,8 +19,13 @@ cloud "Timeseries Database" {
   Timestream(TS_DB, "Timeseries DB", "")
 }
 
-cloud "Tenant Data" {
-  DynamoDB(TENANTS_TABLE, "Tenants table", "")
+' TODO: user, sensor, injector relation
+cloud "Sensor/Tenant Data" {
+  DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [sensor_id, user_id, injector_id, injector_type, injector_data]")
+  note right
+   user_id maps to Cognito userpool
+   a sensor(_id) might have more than one injector(_id)
+  endnote
 }
 
 cloud "Raw data" {
@@ -33,28 +39,30 @@ cloud "Raw data" {
 cloud "Parser" {
   Lambda(PARSER_FUNCTION, "Parser Function", "")
   Rel(RAW_DATA_QUEUE, PARSER_FUNCTION, "reads message from queue",   "")
-  Rel(RAW_DATA_BUCKET, PARSER_FUNCTION, "reads raw data", "")
+  Rel(PARSER_FUNCTION, RAW_DATA_BUCKET, "reads raw data", "")
   Rel(PARSER_FUNCTION, TS_DB, "insert timeseries data", "")
 }
 
 cloud "Injectors" {
+
+  Traditionalserver(PULL_SOURCE, "External source", "")
+
   cloud "Periodic (pull) Injector" #lightblue {
     UpdateRelStyle($lineColor="blue", $textColor="blue")
     StepFunctions(PULL_COORDINATOR, "Coordination State Machine", "")
     EventBridgeEvent(PERIODIC_SCHEDULER, "Scheduler", "")
-    Traditionalserver(PULL_SOURCE, "External source", "")
     RelIndex(1, PERIODIC_SCHEDULER, PULL_COORDINATOR, "triggers every X minutes")
-    RelIndex(2, PULL_COORDINATOR, TENANTS_TABLE, "reads injector_type=periodic")
+    RelIndex(2, PULL_COORDINATOR, SENSORS_TABLE, "reads injector_type=periodic")
     RelIndex(3, PULL_COORDINATOR, PULL_SOURCE, "pulls data")
     RelIndex(4, PULL_COORDINATOR, RAW_DATA_BUCKET, "puts data")
   }
 
+  actor User as UPLOADER
   cloud "HTTP Upload Injector" #lightpink {
-    actor User as UPLOADER
     UpdateRelStyle($lineColor="red", $textColor="red")
     APIGatewayEndpoint(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "/gen-upload-url", "returns presigned URL for upload")
     Lambda(UPLOAD_AUTHORIZER, "Upload Authorizer", "")
-    RelIndex(3, UPLOAD_AUTHORIZER, TENANTS_TABLE, "authorizes", "")
+    RelIndex(3, UPLOAD_AUTHORIZER, SENSORS_TABLE, "authorizes", "")
     RelIndex(4, UPLOAD_AUTHORIZER, RAW_DATA_BUCKET, "generates presigned URL", "")
     RelIndex(2, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, UPLOAD_AUTHORIZER, "calls", "")
 
@@ -62,17 +70,28 @@ cloud "Injectors" {
     RelIndex(5, UPLOADER, RAW_DATA_BUCKET, "uploads data")
   }
 
+  SimpleEmailServiceEmail(INCOMING_EMAILS, "Incoming emails", "")
   cloud "Email Injector" #lightgreen {
     UpdateRelStyle($lineColor="green", $textColor="green")
-    SimpleEmailServiceEmail(INCOMING_EMAILS, "Incoming emails", "")
     SimpleEmailService(SES_INCOMING, "Incoming email gateway", "")
     note right of SES_INCOMING: Format: incoming+secret_value\n@sensor-injector.\nprod.example.com
     RelIndex(1, INCOMING_EMAILS, SES_INCOMING, "arrive at")
     Lambda(INCOMING_EMAILS_LAMBDA, "Incoming Mail handler", "")
     RelIndex(2, SES_INCOMING, INCOMING_EMAILS_LAMBDA, "calls", "")
-    RelIndex(3, INCOMING_EMAILS_LAMBDA, TENANTS_TABLE, "authorizes", "")
+    RelIndex(3, INCOMING_EMAILS_LAMBDA, SENSORS_TABLE, "authorizes", "")
     RelIndex(4, INCOMING_EMAILS_LAMBDA, RAW_DATA_BUCKET, "parses mail and puts into", "")
   }
 
 }
+
+actor User as CUSTOMER
+cloud "Timeseries Query API" {
+
+  Cognito(USER_POOL, "User-Pool", "")
+  APIGatewayEndpoint(LIST_SENSOR_DATA, "/ts/", "list time series", GET)
+  RelIndex(1, LIST_SENSOR_DATA, USER_POOL, "authorizes at")
+  RelIndex(2, CUSTOMER, LIST_SENSOR_DATA, "queries API")
+
+}
+
 @enduml
