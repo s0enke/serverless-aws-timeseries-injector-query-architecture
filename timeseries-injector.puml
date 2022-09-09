@@ -17,9 +17,24 @@ LAYOUT_LANDSCAPE()
 
 title "Serverless Timeseries injector and reader"
 
-Boundary(B_DESCRIPTION, "<b>This proposes a serverless architecture for a timeseries injector and query API:</b>", "assd") {
-
-}
+cloud MYCLOUD [
+<b>This proposes a serverless architecture for a timeseries injector and query API:</b>
+----
+The architecture has no single point of failure.
+----
+Through the use of managed services the service and its components are auto-scaled.
+----
+Ingestion / transform+load / query are decoupled and asynchronous. Congestion is not possible.
+----
+Data can be reprocessed from the raw data if needed, e.g. if there was an error in the processing logic.
+----
+The architecture is idempotent so that reprocessing and message duplication is handled gracefully.
+----
+All components use retry and backoff to be resilient.
+----
+The use of managed services ensures near zero maintenance costs and total cost of ownership.
+]
+newpage
 
 Boundary(B_TS_DB, "Timeseries Database") {
   Timestream(TS_DB, "Timeseries DB", "")
@@ -27,7 +42,6 @@ Boundary(B_TS_DB, "Timeseries Database") {
   note right: use magnetic store for long term storage
 }
 
-' TODO: panda_parse_args
 Boundary(B_SENSOR_TENANT_DATA, "Sensor/Tenant Data") {
   DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [sensor_id, user_id, injector_id, injector_type, injector_data]")
   note right
