@@ -130,13 +130,6 @@ Boundary(B_QUERY_API, "Timeseries Query API") {
 
 newpage
 
-Boundary(B_QUERY_API_TEST, "Timeseries Query API") {
-  CognitoParticipant(USER_POOL_P, "User-Pool", "")
-  actor User as CUSTOMER_
-  USER_POOL_P -> CUSTOMER_
-
-}
-
 Lay_D(B_DESCRIPTION, B_INJECTORS)
 
 
