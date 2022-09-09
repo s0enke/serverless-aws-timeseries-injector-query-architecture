@@ -15,12 +15,32 @@
 
 title "Serverless Timeseries injector and reader"
 
-cloud "Timeseries Database" {
+cloud MYCLOUD [
+<b>This proposes a serverless architecture for a timeseries injector and query API:</b>
+----
+The architecture has no single point of failure.
+----
+Through the use of managed services the service and its components are auto-scaled.
+----
+Ingestion / transform+load / query are decoupled and asynchronous. Congestion is not possible.
+----
+Data can be reprocessed from the raw data if needed, e.g. if there was an error in the processing logic.
+----
+The architecture is idempotent so that reprocessing and message duplication is handled gracefully.
+----
+All components use retry and backoff to be resilient.
+----
+The use of managed services ensures near zero maintenance costs and total cost of ownership.
+]
+newpage
+
+Boundary(B_TS_DB, "Timeseries Database") {
   Timestream(TS_DB, "Timeseries DB", "")
+  note right: use timestamp as version to always upsert and ensure latest data win
+  note right: use magnetic store for long term storage
 }
 
-' TODO: user, sensor, injector relation
-cloud "Sensor/Tenant Data" {
+Boundary(B_SENSOR_TENANT_DATA, "Sensor/Tenant Data") {
   DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [sensor_id, user_id, injector_id, injector_type, injector_data]")
   note right
    user_id maps to Cognito userpool
@@ -28,37 +48,46 @@ cloud "Sensor/Tenant Data" {
   endnote
 }
 
-cloud "Raw data" {
+Boundary(B_RAW_DATA, "Raw data Storage and Parser") {
   SimpleStorageServiceBucket(RAW_DATA_BUCKET, "Raw data Bucket", "Structure: sensor_id/file_checksum", "")
   note right of RAW_DATA_BUCKET: checksum to ensure ignoring already existing data
   SimpleQueueServiceQueue(RAW_DATA_QUEUE, "Raw Data SQS Queue", "")
+  SimpleQueueServiceQueue(RAW_DATA_DLQUEUE, "Dead letter queue", "")
   Rel(RAW_DATA_BUCKET, RAW_DATA_QUEUE, "emits event on new object",   "")
 
-}
-
-cloud "Parser" {
   Lambda(PARSER_FUNCTION, "Parser Function", "")
+  note right
+    detects format, e.g. JSON or CSV
+    reads/writes with python pandas lib and aws-datawrangler
+  endnote
   Rel(RAW_DATA_QUEUE, PARSER_FUNCTION, "reads message from queue",   "")
   Rel(PARSER_FUNCTION, RAW_DATA_BUCKET, "reads raw data", "")
   Rel(PARSER_FUNCTION, TS_DB, "insert timeseries data", "")
+  Rel(RAW_DATA_QUEUE, RAW_DATA_DLQUEUE, "move to DLQ after N tries", "")
+
 }
 
-cloud "Injectors" {
+Boundary(B_INJECTORS, "Injectors") {
 
   Traditionalserver(PULL_SOURCE, "External source", "")
 
-  cloud "Periodic (pull) Injector" #lightblue {
+  Boundary(B_INJECTOR_PERIODIC, "Periodic (pull) Injector") {
+    UpdateBoundaryStyle($bgColor="lightblue")
     UpdateRelStyle($lineColor="blue", $textColor="blue")
     StepFunctions(PULL_COORDINATOR, "Coordination State Machine", "")
     EventBridgeEvent(PERIODIC_SCHEDULER, "Scheduler", "")
     RelIndex(1, PERIODIC_SCHEDULER, PULL_COORDINATOR, "triggers every X minutes")
     RelIndex(2, PULL_COORDINATOR, SENSORS_TABLE, "reads injector_type=periodic")
-    RelIndex(3, PULL_COORDINATOR, PULL_SOURCE, "pulls data")
-    RelIndex(4, PULL_COORDINATOR, RAW_DATA_BUCKET, "puts data")
+    Lambda(PULL_FUNCTION, "Pull Function", "")
+    RelIndex(3, PULL_COORDINATOR, PULL_FUNCTION, "calls for each injector")
+
+    RelIndex(4, PULL_FUNCTION, PULL_SOURCE, "pulls data", "Additional logic per type, e.g. delete from FTP server once copied to S3")
+    RelIndex(5, PULL_FUNCTION, RAW_DATA_BUCKET, "puts data")
   }
 
   actor User as UPLOADER
-  cloud "HTTP Upload Injector" #lightpink {
+  Boundary(B_INJECTOR_UPLOAD, "HTTP Upload Injector") {
+    UpdateBoundaryStyle($bgColor="lightpink")
     UpdateRelStyle($lineColor="red", $textColor="red")
     APIGatewayEndpoint(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "/gen-upload-url", "returns presigned URL for upload")
     Lambda(UPLOAD_AUTHORIZER, "Upload Authorizer", "")
@@ -71,27 +100,30 @@ cloud "Injectors" {
   }
 
   SimpleEmailServiceEmail(INCOMING_EMAILS, "Incoming emails", "")
-  cloud "Email Injector" #lightgreen {
+  Boundary(B_INJECTOR_EMAIL, "Email Injector") {
     UpdateRelStyle($lineColor="green", $textColor="green")
+    UpdateBoundaryStyle($bgColor="lightgreen")
     SimpleEmailService(SES_INCOMING, "Incoming email gateway", "")
-    note right of SES_INCOMING: Format: incoming+secret_value\n@sensor-injector.\nprod.example.com
+    note right of SES_INCOMING: Format: incoming+<shared-secret>\n@sensor-injector.\nprod.example.com
     RelIndex(1, INCOMING_EMAILS, SES_INCOMING, "arrive at")
     Lambda(INCOMING_EMAILS_LAMBDA, "Incoming Mail handler", "")
     RelIndex(2, SES_INCOMING, INCOMING_EMAILS_LAMBDA, "calls", "")
     RelIndex(3, INCOMING_EMAILS_LAMBDA, SENSORS_TABLE, "authorizes", "")
-    RelIndex(4, INCOMING_EMAILS_LAMBDA, RAW_DATA_BUCKET, "parses mail and puts into", "")
+    RelIndex(4, INCOMING_EMAILS_LAMBDA, RAW_DATA_BUCKET, "parses mail and puts raw into", "")
   }
 
 }
 
 actor User as CUSTOMER
-cloud "Timeseries Query API" {
+Boundary(B_QUERY_API, "Timeseries Query API") {
+  UpdateBoundaryStyle($bgColor="white")
+  UpdateRelStyle($lineColor="black", $textColor="black")
 
   Cognito(USER_POOL, "User-Pool", "")
-  APIGatewayEndpoint(LIST_SENSOR_DATA, "/ts/", "list time series", GET)
-  RelIndex(1, LIST_SENSOR_DATA, USER_POOL, "authorizes at")
-  RelIndex(2, CUSTOMER, LIST_SENSOR_DATA, "queries API")
-
+  APIGatewayEndpoint(LIST_SENSOR_DATA, "/ts/?sensor_id=abc", "list time series", GET)
+  RelIndex(2, LIST_SENSOR_DATA, USER_POOL, "authorizes at", "via Cognito authorizer")
+  RelIndex(1, CUSTOMER, LIST_SENSOR_DATA, "queries API")
+  RelIndex(3, LIST_SENSOR_DATA, TS_DB, "queries", "via service integration")
 }
 
 @enduml
