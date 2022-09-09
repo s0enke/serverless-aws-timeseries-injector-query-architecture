@@ -32,7 +32,6 @@ All components use retry and backoff to be resilient.
 ----
 The use of managed services ensures near zero maintenance costs and total cost of ownership.
 ]
-newpage
 
 Boundary(B_TS_DB, "Timeseries Database") {
   Timestream(TS_DB, "Timeseries DB", "")
@@ -48,6 +47,8 @@ Boundary(B_SENSOR_TENANT_DATA, "Sensor/Tenant Data") {
 }
 
 Boundary(B_RAW_DATA, "Raw data Storage and Parser") {
+  UpdateRelStyle($lineColor="orange", $textColor="orange")
+
   SimpleStorageServiceBucket(RAW_DATA_BUCKET, "Raw data Bucket", "Structure: sensor_id/file_checksum", "")
   note right of RAW_DATA_BUCKET: checksum to ensure ignoring already existing data
   SimpleQueueServiceQueue(RAW_DATA_QUEUE, "Raw Data SQS Queue", "")
@@ -55,11 +56,28 @@ Boundary(B_RAW_DATA, "Raw data Storage and Parser") {
   Rel(RAW_DATA_BUCKET, RAW_DATA_QUEUE, "emits event on new object (s3:ObjectCreated:*)",   "")
 
   Lambda(PARSER_FUNCTION, "Parser Function", "")
-  note right
-    detects format, e.g. JSON or CSV
-    reads/writes with python pandas lib and aws-datawrangler
+  skinparam noteTextAlignment left
+  note left
+    * detects format, e.g. JSON or CSV
+    * reads/writes with python pandas lib and aws-datawrangler:
+    ----
+    data = pandas.read_csv('file', **parser_args_from_ddb)
+    example for parser_args_from_ddb:
+    {
+      parse_dates=[0],
+      encoding='iso-8859-1',
+      sep=';',
+      infer_datetime_format=True,
+      usecols=[0,6],
+      decimal=',',
+      names=['date', 'leistung'],
+      header=0
+    }
+
+    rejected_records = wr.timestream.write(df=data)
   endnote
   Rel(RAW_DATA_QUEUE, PARSER_FUNCTION, "reads message from queue",   "")
+  Rel(PARSER_FUNCTION, SENSORS_TABLE, "reads parsing options", "")
   Rel(PARSER_FUNCTION, RAW_DATA_BUCKET, "reads raw data", "")
   Rel(PARSER_FUNCTION, TS_DB, "insert timeseries data", "uses S3 last_modified timestamp as version for upserts to ensure latest version always wins")
   Rel(RAW_DATA_QUEUE, RAW_DATA_DLQUEUE, "move to DLQ after N tries", "")
@@ -113,8 +131,6 @@ Boundary(B_INJECTORS, "Injectors") {
 
 }
 
-' TODO: authorize
-' TODO: paginate
 actor User as CUSTOMER
 Boundary(B_QUERY_API, "Timeseries Query API") {
   UpdateBoundaryStyle($bgColor="white")
@@ -123,13 +139,15 @@ Boundary(B_QUERY_API, "Timeseries Query API") {
   Cognito(USER_POOL, "User-Pool", "")
   APIGatewayEndpoint(LIST_SENSOR_DATA, "Endpoint to list time series data", "")
   Lambda(LIST_SENSOR_DATA_QUERY, "Query Function","")
-  RelIndex(1, CUSTOMER, LIST_SENSOR_DATA, "queries API", "GET /ts/?sensor_id=abc")
-  RelIndex(2, LIST_SENSOR_DATA, USER_POOL, "authorizes at", "via Cognito authorizer")
-  RelIndex(3, LIST_SENSOR_DATA, LIST_SENSOR_DATA_QUERY, "proxies request to", "")
-  RelIndex(4, LIST_SENSOR_DATA_QUERY, TS_DB, "queries", "via SQL")
+  RelIndex(1, CUSTOMER, USER_POOL, "signs in / retrieves JWT", "")
+  RelIndex(2, CUSTOMER, LIST_SENSOR_DATA, "queries API", "GET /ts/?sensor_id=abc")
+  RelIndex(3, LIST_SENSOR_DATA, USER_POOL, "authorizes at", "via Cognito authorizer")
+  RelIndex(4, LIST_SENSOR_DATA, LIST_SENSOR_DATA_QUERY, "proxies request to", "")
+  RelIndex(5, LIST_SENSOR_DATA_QUERY, SENSORS_TABLE, "checks access", "")
+  RelIndex(6, LIST_SENSOR_DATA_QUERY, TS_DB, "queries", "via SQL")
 }
 
-Lay_D(B_DESCRIPTION, B_INJECTORS)
+Lay_D(MYCLOUD, B_INJECTORS)
 
 
 @enduml
