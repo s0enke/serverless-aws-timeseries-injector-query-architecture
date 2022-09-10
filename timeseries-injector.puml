@@ -34,6 +34,10 @@ Boundary(B_TS_DB, "Timeseries Database") {
   note right: use magnetic store for long term storage
 }
 
+Boundary(USERPOOL, "User Auth") {
+  Cognito(USER_POOL, "User-Pool", "")
+}
+
 Boundary(B_SENSOR_TENANT_DATA, "Sensor/Tenant Data") {
   DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [injector_uuid, sensor_id, injector_type, sensor_parser_args, sensor_parser_code?, cognito_user_id, injector_type, injector_data]")
   note right
@@ -108,9 +112,10 @@ Boundary(B_INJECTORS, "Injectors") {
     UpdateRelStyle($lineColor="red", $textColor="red")
     APIGatewayEndpoint(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "/gen-upload-url", "returns presigned URL for upload")
     Lambda(UPLOAD_AUTHORIZER, "Upload Authorizer", "")
-    RelIndex(3, UPLOAD_AUTHORIZER, SENSORS_TABLE, "authorizes", "")
-    RelIndex(4, UPLOAD_AUTHORIZER, RAW_DATA_BUCKET, "generates presigned URL", "")
-    RelIndex(2, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, UPLOAD_AUTHORIZER, "calls", "")
+    RelIndex(3, UPLOAD_AUTHORIZER, USER_POOL, "authenticates", "")
+    RelIndex(4, UPLOAD_AUTHORIZER, SENSORS_TABLE, "authorizes sensor_id", "")
+    RelIndex(5, UPLOAD_AUTHORIZER, RAW_DATA_BUCKET, "generates presigned URL", "")
+    RelIndex(6, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, UPLOAD_AUTHORIZER, "calls", "")
 
     RelIndex(1, UPLOADER, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "gets presigned upload URL")
     RelIndex(5, UPLOADER, RAW_DATA_BUCKET, "uploads data")
@@ -136,7 +141,6 @@ Boundary(B_QUERY_API, "Timeseries Query API") {
   UpdateBoundaryStyle($bgColor="white")
   UpdateRelStyle($lineColor="purple", $textColor="purple")
 
-  Cognito(USER_POOL, "User-Pool", "")
   APIGatewayEndpoint(LIST_SENSOR_DATA, "Endpoint to list time series data", "")
   Lambda(LIST_SENSOR_DATA_QUERY, "Query Function","")
   RelIndex(1, CUSTOMER, USER_POOL, "signs in / retrieves JWT", "")
