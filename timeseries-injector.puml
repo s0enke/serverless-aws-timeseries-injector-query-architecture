@@ -59,22 +59,22 @@ Boundary(B_RAW_DATA, "Raw data Storage and Parser") {
   skinparam noteTextAlignment left
   note left
     * detects format, e.g. JSON or CSV
-    * reads/writes with python pandas lib and aws-datawrangler:
-    ----
-    data = pandas.read_csv('file', **parser_args_from_ddb)
-    example for parser_args_from_ddb:
-    {
-      parse_dates=[0],
-      encoding='iso-8859-1',
-      sep=';',
-      infer_datetime_format=True,
-      usecols=[0,6],
-      decimal=',',
-      names=['date', 'leistung'],
-      header=0
-    }
-
-    rejected_records = wr.timestream.write(df=data)
+    * reads/writes with python pandas lib:
+      data = pandas.read_csv('file', **parser_args_from_ddb)
+      example for parser_args_from_ddb:
+      {
+        parse_dates=[0],
+        encoding='iso-8859-1',
+        sep=';',
+        infer_datetime_format=True,
+        usecols=[0,6],
+        decimal=',',
+        names=['date', 'leistung'],
+        header=0
+      }
+    * for very esoteric data formats, python eval() is be necessary
+    * writes data with aws-datawrangler
+      rejected_records = wr.timestream.write(df=data)
   endnote
   Rel(RAW_DATA_QUEUE, PARSER_FUNCTION, "reads message from queue",   "")
   Rel(PARSER_FUNCTION, SENSORS_TABLE, "reads parsing options", "")
