@@ -2,4 +2,4 @@
 
 ## Architecture Diagram
 
-![Architecture Diagram](http://www.plantuml.com/plantuml/png/RSuzhi8m4CJn_ftYSG1dgQbo5UECy8Az3lj1nEqnFTL8FqtnNyspUlJsTs8fBJQ4jl_gljk5IFEntDXhNCEWPOX3V2cZavqX3z3K5xJ1BEN3adF798ObbZkA3qtFWBvJrbBPfuI2UcQX7zzb_uQia6tk1m00)
+![Architecture Diagram](https://www.plantuml.com/plantuml/png/RSuzhi8m4CJn_ftYSG1dgQbo5UECy8Az3lj1nEqnFTL8FqtnNyspUlJsTs8fBJQ4jl_gljk5IFEntDXhNCEWPOX3V2cZavqX3z3K5xJ1BEN3adF798ObbZkA3qtFWBvJrbBPfuI2UcQX7zzb_uQia6tk1m00)
