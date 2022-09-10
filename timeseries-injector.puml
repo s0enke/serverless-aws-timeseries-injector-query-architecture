@@ -17,20 +17,16 @@ title "Serverless Timeseries injector and reader"
 
 cloud MYCLOUD [
 <b>This proposes a serverless architecture for a timeseries injector and query API:</b>
-----
-The architecture has no single point of failure.
-----
-Through the use of managed services the service and its components are auto-scaled.
-----
-Ingestion / transform+load / query are decoupled and asynchronous. Congestion is not possible.
-----
-Data can be reprocessed from the raw data if needed, e.g. if there was an error in the processing logic.
-----
-The architecture is idempotent so that reprocessing and message duplication is handled gracefully.
-----
-All components use retry and backoff to be resilient.
-----
-The use of managed services ensures near zero maintenance costs and total cost of ownership.
+
+* The architecture has no single point of failure.
+* Through the use of managed services the service and its components are auto-scaled.
+* Ingestion / transform+load / query are decoupled and asynchronous. Congestion is not possible.
+* Data can be reprocessed from the raw data if needed, e.g. if there was an error in the processing logic.
+* The architecture is idempotent so that reprocessing and message duplication is handled gracefully.
+* All components use retry and backoff to be resilient.
+* The use of managed services ensures near zero maintenance costs and total cost of ownership.
+* Cost effective: All components scale to zero and cost nothing if not used.
+* Extensible: New injectors and file formats can be easily added.
 ]
 
 Boundary(B_TS_DB, "Timeseries Database") {
@@ -39,10 +35,11 @@ Boundary(B_TS_DB, "Timeseries Database") {
 }
 
 Boundary(B_SENSOR_TENANT_DATA, "Sensor/Tenant Data") {
-  DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [sensor_id, user_id, injector_id, injector_type, injector_data]")
+  DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [injector_uuid, sensor_id, injector_type, sensor_parser_args, sensor_parser_code?, cognito_user_id, injector_type, injector_data]")
   note right
-   user_id maps to Cognito userpool
-   a sensor(_id) might have more than one injector(_id)
+   * sensor_id is the externally assigned id, which might lead to conflicts
+   * user_id maps to Cognito userpool
+   * a sensor(_id) might have more than one injector(_uuid)
   endnote
 }
 
@@ -50,7 +47,10 @@ Boundary(B_RAW_DATA, "Raw data Storage and Parser") {
   UpdateRelStyle($lineColor="orange", $textColor="orange")
 
   SimpleStorageServiceBucket(RAW_DATA_BUCKET, "Raw data Bucket", "Structure: sensor_id/file_checksum", "")
-  note right of RAW_DATA_BUCKET: checksum to ensure ignoring already existing data
+  note right of RAW_DATA_BUCKET
+   * checksum to ensure ignoring already existing data
+   * lifecycle rule to move files to most cost-effective tape store after some days
+  endnote
   SimpleQueueServiceQueue(RAW_DATA_QUEUE, "Raw Data SQS Queue", "")
   SimpleQueueServiceQueue(RAW_DATA_DLQUEUE, "Dead letter queue", "")
   Rel(RAW_DATA_BUCKET, RAW_DATA_QUEUE, "emits event on new object (s3:ObjectCreated:*)",   "")
