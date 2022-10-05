@@ -39,7 +39,7 @@ Boundary(USERPOOL, "User Auth") {
 }
 
 Boundary(B_SENSOR_TENANT_DATA, "Sensor/Tenant Data") {
-  DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [injector_uuid, sensor_id, injector_type, sensor_parser_args, sensor_parser_code?, cognito_user_id, injector_type, injector_data]")
+  DynamoDB(SENSORS_TABLE, "Sensors table", "Structure: [injector_uuid, sensor_id, sensor_parser_args, sensor_parser_code?, cognito_user_id, injector_type, injector_data]")
   note right
    * sensor_id is the externally assigned id, which might lead to conflicts
    * user_id maps to Cognito userpool
@@ -112,13 +112,16 @@ Boundary(B_INJECTORS, "Injectors") {
     UpdateRelStyle($lineColor="red", $textColor="red")
     APIGatewayEndpoint(HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "/gen-upload-url", "returns presigned URL for upload")
     Lambda(UPLOAD_AUTHORIZER, "Upload Authorizer", "")
+    Lambda(PRESIGNED_URL_GEN, "Presigned URL Generator", "")
+    RelIndex(1, UPLOADER, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "gets presigned upload URL")
+    RelIndex(2, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, UPLOAD_AUTHORIZER, "calls", "")
     RelIndex(3, UPLOAD_AUTHORIZER, USER_POOL, "authenticates", "")
     RelIndex(4, UPLOAD_AUTHORIZER, SENSORS_TABLE, "authorizes sensor_id", "")
-    RelIndex(5, UPLOAD_AUTHORIZER, RAW_DATA_BUCKET, "generates presigned URL", "")
-    RelIndex(6, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, UPLOAD_AUTHORIZER, "calls", "")
+    RelIndex(5, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, PRESIGNED_URL_GEN, "calls", "")
+    RelIndex(6, PRESIGNED_URL_GEN, RAW_DATA_BUCKET, "generates presigned URL", "")
 
-    RelIndex(1, UPLOADER, HTTP_UPLOAD_PRESIGNED_URL_ENDPOINT, "gets presigned upload URL")
-    RelIndex(5, UPLOADER, RAW_DATA_BUCKET, "uploads data")
+
+    RelIndex(7, UPLOADER, RAW_DATA_BUCKET, "uploads data")
   }
 
   SimpleEmailServiceEmail(INCOMING_EMAILS, "Incoming emails", "")
