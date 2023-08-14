@@ -8,7 +8,10 @@ export async function main(
 ): Promise<APIGatewayProxyResultV2> {
   const sensor_id = event.queryStringParameters.sensor_id! as string
 
-  const s3 = new AWS.S3();
+  const s3 = new AWS.S3({
+    apiVersion: '2006-03-01',
+    signatureVersion: 'v4',
+  });
   const signedUrl = s3.getSignedUrl("putObject", {
     Bucket: process.env['RAW_DATA_BUCKET']! as string,
     Key: `${sensor_id}/uuid-id`,
