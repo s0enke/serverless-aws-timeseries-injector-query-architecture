@@ -10,18 +10,34 @@ let outputs: any;
 let loginData: any;
 
 beforeAll(async () => {
-  child_process.execSync("cdk deploy --outputs-file ./cdk-outputs.json --require-approval never --hotswap");
+  child_process.execSync("npx cdk deploy --outputs-file ./cdk-outputs.json --require-approval never --hotswap");
   outputs = JSON.parse(fs.readFileSync('./cdk-outputs.json', 'utf-8'))
-  child_process.execSync(`cdk deploy --require-approval never --outputs-file ${__dirname}/cdk-fixtures-outputs.json --hotswap --parameters UserPoolId=${outputs.TimeseriesInjectorStack.UserPoolId}`, {cwd: __dirname});
-  const fixturesOutputs = JSON.parse(fs.readFileSync(`${__dirname}/cdk-fixtures-outputs.json`, 'utf-8'))
 
   const cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider();
+
+  const username = crypto.randomBytes(20).toString('hex');
+  const user = await cognitoidentityserviceprovider.adminCreateUser(
+    {
+      UserPoolId: outputs.TimeseriesInjectorStack.UserPoolId,
+      Username: username,
+    }
+  ).promise();
+
+  await cognitoidentityserviceprovider.adminSetUserPassword(
+    {
+      UserPoolId: outputs.TimeseriesInjectorStack.UserPoolId,
+      Password: "I$oldeMaWidderB4d3n",
+      Username: username,
+      Permanent: true,
+    }
+  ).promise();
+
   loginData = await cognitoidentityserviceprovider.adminInitiateAuth({
     AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
     ClientId: outputs.TimeseriesInjectorStack.UserPoolClientId,
     UserPoolId: outputs.TimeseriesInjectorStack.UserPoolId,
     AuthParameters: {
-      USERNAME: fixturesOutputs.IntegrationTestsFixtures.UserPoolUsername,
+      USERNAME: username,
       PASSWORD: "I$oldeMaWidderB4d3n",
     }
   }).promise();
