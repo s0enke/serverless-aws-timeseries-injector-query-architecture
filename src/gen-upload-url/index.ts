@@ -6,7 +6,7 @@ import {APIGatewayProxyEventV2, APIGatewayProxyResultV2} from 'aws-lambda';
 export async function main(
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> {
-  const sensor_id = event.queryStringParameters.sensor_id! as string
+  const sensor_id = event.queryStringParameters?.sensor_id! as string
 
   const s3 = new AWS.S3({
     apiVersion: '2006-03-01',

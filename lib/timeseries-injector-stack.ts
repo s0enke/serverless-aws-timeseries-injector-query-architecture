@@ -48,7 +48,7 @@ export class TimeseriesInjectorStack extends Stack {
     const rawDataBucket = new s3.Bucket(this, "rawDataBucket");
 
     const lambdaFunction = new NodejsFunction(this, 'gen-upload-url', {
-      runtime: lambda.Runtime.NODEJS_14_X,
+      runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'main',
       entry: path.join(__dirname, `/../src/gen-upload-url/index.ts`),
       environment: {
