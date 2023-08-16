@@ -7,7 +7,6 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3_notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
-import {PythonFunction} from '@aws-cdk/aws-lambda-python-alpha';
 import * as apiGateway from '@aws-cdk/aws-apigatewayv2-alpha';
 import * as apiGatewayAuthorizers from '@aws-cdk/aws-apigatewayv2-authorizers-alpha';
 import * as apiGatewayIntegrations from '@aws-cdk/aws-apigatewayv2-integrations-alpha';
@@ -76,12 +75,8 @@ export class TimeseriesInjectorStack extends Stack {
       }
     });
 
-    const parserFunction = new PythonFunction(this, 'parserFunction', {
-      runtime: lambda.Runtime.PYTHON_3_9,
-      entry: path.join(__dirname, `/../src/parser`),
-      layers: [
-        lambda.LayerVersion.fromLayerVersionArn(this, 'AwsDataWrangler', 'arn:aws:lambda:eu-central-1:336392948345:layer:AWSDataWrangler-Python39:7'),
-      ],
+    const parserFunction = new lambda.DockerImageFunction(this, 'parserFunction', {
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, `/../src/parser`)),
       environment: {
         TIMESTREAM_DATABASE_NAME: timeseriesDatabase.ref,
         TIMESTREAM_TABLE_NAME: timeseriesTable.getAtt('Name').toString(),

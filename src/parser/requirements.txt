@@ -1,3 +1,4 @@
+awswrangler==3.3.0
 fsspec
 s3fs
 
