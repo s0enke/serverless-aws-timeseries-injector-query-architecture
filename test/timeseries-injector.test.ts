@@ -57,15 +57,47 @@ test('Upload to Raw Data Bucket puts data into time series DB', async () => {
     }
   });
 
-  const res = await retryAsync(async () => {
-    console.log("try")
-    // should land in timeseries db
+  const actual = await retryAsync(async () => {
     const ts = new AWS.TimestreamQuery();
     const res = await ts.query({QueryString: `SELECT * from "${outputs.TimeseriesInjectorStack.TimeSeriesDatabase}"."${outputs.TimeseriesInjectorStack.TimeSeriesTable}" WHERE sensor_id='${sensor_id}'`}).promise();
-    const actual = res.Rows;
-    console.log(actual[0].Data);
-    return res;
+    if (res.Rows.length != 3) {
+      throw new Error("No data yet")
+    }
+    return res.Rows;
+  }, {
+
+    delay: 5000,
+    maxTry: 10,
   });
+
+  expect(actual).toEqual(
+    [
+      {
+        Data: [
+          {ScalarValue: sensor_id},
+          {ScalarValue: 'measure'},
+          {ScalarValue: '2022-02-27 23:00:00.000000000'},
+          {ScalarValue: '46.4'}
+        ],
+      },
+      {
+        Data: [
+          { ScalarValue: sensor_id },
+          { ScalarValue: 'measure' },
+          { ScalarValue: '2022-02-27 23:15:00.000000000' },
+          { ScalarValue: '-8.7' }
+        ],
+      },
+      {
+        Data: [
+          { ScalarValue: sensor_id },
+          { ScalarValue: 'measure' },
+          { ScalarValue: '2022-02-27 23:30:00.000000000' },
+          { ScalarValue: '2.0' }
+        ],
+      },
+    ],
+  )
 
 });
 
